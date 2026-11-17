@@ -1,0 +1,81 @@
+---
+title: "Google Gemini"
+description: "caelum.genai: a drop-in replacement for the Google Gen AI SDK (google-genai)."
+---
+
+```bash
+pip install "caelum-ai[gemini]"
+```
+
+```python
+from caelum import genai  # instead of: from google import genai
+```
+
+`caelum.genai` mirrors the `google.genai` module: `genai.types`, `genai.errors` and
+everything else are the original objects. Only `genai.Client` is replaced. It accepts exactly
+the same arguments as `google.genai.Client`, plus the optional CAELUM options.
+
+| Method | CAELUM features |
+| --- | --- |
+| `models.generate_content` (sync and `client.aio`) | exact cache, retries, metrics |
+| everything else | forwarded untouched (`generate_content_stream`, `chats`, `files`, `embed_content`...) |
+
+## Generate content
+
+```python
+from caelum import genai
+
+client = genai.Client(cache=True)  # reads GEMINI_API_KEY (or GOOGLE_API_KEY)
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="What is an inference cache?",
+    config=genai.types.GenerateContentConfig(max_output_tokens=256),
+)
+print(response.text)
+client.metrics.print_summary()
+```
+
+## Asynchronous
+
+`client.aio` shares the same cache and metrics as the synchronous client.
+
+```python
+import asyncio
+from caelum import genai
+
+async def main() -> None:
+    client = genai.Client(cache=True)
+    response = await client.aio.models.generate_content(model="gemini-2.5-flash", contents="Hi")
+    print(response.text)
+
+asyncio.run(main())
+```
+
+## Retries
+
+```python
+client = genai.Client(retry=True)  # 429, 5xx and network errors, with backoff
+```
+
+<Warning>
+Do not combine `retry=True` with the SDK's own `http_options.retry_options`: attempts would
+multiply.
+</Warning>
+
+## What is never cached
+
+- Requests whose `tools` contain Python functions (automatic function calling): your
+  functions must run every time.
+- Requests with a Python class as `response_schema`.
+- Streams (`generate_content_stream`).
+
+## Costs
+
+Thinking tokens are counted as output tokens, like Google bills them. Prices for
+`gemini-2.5-*`, `gemini-3-flash-preview` and `gemini-3.1-flash-lite` are built in. Add other
+models with `caelum.pricing.register_price("model-name", input_per_1m, output_per_1m)`.
+
+## Not supported yet
+
+The semantic cache, routing and cross-provider fallback do not work with Gemini yet.
+Translating OpenAI or Anthropic requests to Gemini is on the roadmap.

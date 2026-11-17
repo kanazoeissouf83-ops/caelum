@@ -1,0 +1,81 @@
+---
+title: "Mistral"
+description: "caelum.Mistral: a drop-in replacement for the Mistral SDK (mistralai)."
+---
+
+```bash
+pip install "caelum-ai[mistral]"
+```
+
+```python
+from caelum import Mistral  # instead of: from mistralai.client import Mistral
+```
+
+`caelum.Mistral` accepts exactly the same arguments as `mistralai.client.Mistral`, plus the
+optional CAELUM options.
+
+| Method | CAELUM features |
+| --- | --- |
+| `chat.complete`, `chat.complete_async` | exact cache, retries, metrics |
+| everything else | forwarded untouched (`chat.stream`, `chat.parse`, `embeddings`, `agents`...) |
+
+## Chat
+
+```python
+import os
+from caelum import Mistral
+
+client = Mistral(api_key=os.environ["MISTRAL_API_KEY"], cache=True)
+response = client.chat.complete(
+    model="mistral-small-latest",
+    messages=[{"role": "user", "content": "What is an inference cache?"}],
+    max_tokens=256,
+)
+print(response.choices[0].message.content)
+client.metrics.print_summary()
+```
+
+## Asynchronous
+
+`chat.complete_async` shares the same cache and metrics.
+
+```python
+import asyncio
+import os
+from caelum import Mistral
+
+async def main() -> None:
+    async with Mistral(api_key=os.environ["MISTRAL_API_KEY"], cache=True) as client:
+        response = await client.chat.complete_async(
+            model="mistral-small-latest", messages=[{"role": "user", "content": "Hi"}]
+        )
+        print(response.choices[0].message.content)
+
+asyncio.run(main())
+```
+
+## Retries
+
+```python
+client = Mistral(api_key="...", retry=True)  # 429, 5xx and network errors, with backoff
+```
+
+<Warning>
+Do not combine `retry=True` with the SDK's own `retry_config`: attempts would multiply.
+</Warning>
+
+## Costs
+
+Prices of the current Small, Medium and Large generations are built in; `-latest` aliases
+and dated versions match them. Add other models with
+`caelum.pricing.register_price("model-name", input_per_1m, output_per_1m)`.
+
+## Testing status
+
+`caelum.Mistral` is tested against a simulated Mistral server. Mistral models were also
+tested for real through an OpenAI-compatible API (OpenRouter), but not yet through the
+paid Mistral API itself. Please report anything that behaves differently.
+
+## Not supported yet
+
+The semantic cache, routing and cross-provider fallback do not work with Mistral yet.

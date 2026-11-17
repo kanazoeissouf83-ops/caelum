@@ -1,0 +1,126 @@
+[project]
+# WHY "caelum-ai": the "caelum" name on PyPI belongs to a weather library abandoned since
+# 2015. The import name stays `caelum` (pip install caelum-ai -> from caelum import OpenAI).
+name = "caelum-ai"
+dynamic = ["version"]
+description = "The control plane for AI inference: drop-in caching, routing, observability and fallback for LLM APIs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Issouf KANAZOE" }]
+keywords = [
+    "llm",
+    "ai",
+    "inference",
+    "openai",
+    "anthropic",
+    "gemini",
+    "mistral",
+    "cache",
+    "semantic-cache",
+    "routing",
+    "observability",
+    "llmops",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+# WHY: the core stays minimal. Provider SDKs and pretty printing
+# are optional extras so users only install what they actually use.
+dependencies = []
+
+[project.scripts]
+caelum = "caelum.cli:main"
+
+[project.optional-dependencies]
+openai = ["openai>=1.40"]
+anthropic = ["anthropic>=0.40"]
+gemini = ["google-genai>=1.30"]
+mistral = ["mistralai>=3.0"]
+rich = ["rich>=13.0"]
+# Faster semantic-cache search on large caches (optional).
+fast = ["numpy>=1.26"]
+# YAML router configuration files (optional; dicts and JSON need nothing).
+yaml = ["pyyaml>=6.0"]
+
+[project.urls]
+Homepage = "https://caelum-ai.com"
+Documentation = "https://caelum-ai.com/docs"
+Repository = "https://github.com/kanazoeissouf83-ops/caelum"
+Issues = "https://github.com/kanazoeissouf83-ops/caelum/issues"
+Changelog = "https://github.com/kanazoeissouf83-ops/caelum/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/caelum/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/caelum"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/caelum", "tests", "README.md", "LICENSE", "NOTICE", "pyproject.toml"]
+exclude = ["tests/integration/.env"]
+
+# ---------- ruff ----------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["caelum"]
+
+# ---------- pyright ----------
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+# ---------- pytest ----------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-m 'not integration' --cov=caelum --cov-report=term-missing"
+markers = [
+    "integration: real API calls, excluded by default (run with -m integration)",
+]
+
+# ---------- coverage ----------
+[tool.coverage.run]
+source = ["caelum"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

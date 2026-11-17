@@ -1,0 +1,18 @@
+# Example CAELUM routing rules (see docs/routing.mdx).
+# Routes are tried in order; the first match wins.
+routes:
+  - name: cheap-reformulation
+    match:
+      messages_max_tokens: 500
+      system_contains: ["reformulate", "rewrite", "paraphrase"]
+    target: claude-haiku-5-5
+    provider: anthropic
+  - name: complex-reasoning
+    match:
+      messages_min_tokens: 2000
+    target: gpt-4o # OpenAI model names: check the current lineup
+    provider: openai
+# Optional: without "default", requests matching no route keep their model.
+default:
+  target: gpt-4o-mini
+  provider: openai

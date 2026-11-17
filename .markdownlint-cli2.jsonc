@@ -1,0 +1,16 @@
+{
+  // WHY: line length is enforced by prettier/ruff on code, not on prose.
+  "config": {
+    "default": true,
+    "MD013": false
+  },
+  // WHY: CONTEXTE.md and PLANNING.md are internal working documents edited by hand;
+  // linting targets public-facing docs only.
+  "ignores": [
+    "node_modules/**",
+    "**/node_modules/**",
+    "**/.venv/**",
+    "CONTEXTE.md",
+    "PLANNING.md"
+  ]
+}

@@ -1,0 +1,102 @@
+---
+title: "OpenAI"
+description: "caelum.OpenAI and caelum.AsyncOpenAI: drop-in replacements for the OpenAI SDK."
+---
+
+```python
+from caelum import OpenAI, AsyncOpenAI
+```
+
+`caelum.OpenAI` accepts **exactly the same arguments** as `openai.OpenAI` (`api_key`,
+`base_url`, `organization`, `timeout`, `max_retries`, `http_client`...) plus the optional
+CAELUM options. Without CAELUM options, it behaves exactly like the SDK.
+
+## What CAELUM intercepts
+
+| Method | CAELUM features |
+|---|---|
+| `chat.completions.create` | exact & semantic cache, routing, fallback, retries, metrics |
+| `embeddings.create` | exact cache, retries, metrics |
+| everything else | forwarded untouched (`chat.completions.parse`, `responses`, `files`, `models`...) |
+
+`with_options(...)` and `copy(...)` keep the CAELUM features. `with_raw_response` and
+`with_streaming_response` go straight to the SDK (no cache, no metrics).
+
+## Synchronous
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(cache=True)
+completion = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+embedding = client.embeddings.create(model="text-embedding-3-small", input="Hello")
+```
+
+## Streaming
+
+```python
+stream = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Count to 5"}],
+    stream=True,
+)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+```
+
+Streams are returned untouched (never cached in this version).
+
+## Asynchronous
+
+```python
+import asyncio
+from caelum import AsyncOpenAI
+
+async def main() -> None:
+    async with AsyncOpenAI(cache=True) as client:
+        completion = await client.chat.completions.create(
+            model="gpt-4o-mini", messages=[{"role": "user", "content": "Hello"}]
+        )
+        print(completion.choices[0].message.content)
+
+asyncio.run(main())
+```
+
+## Typing, copies and errors
+
+- Type checkers see `caelum.OpenAI` as `openai.OpenAI`: autocompletion and return types
+  (`ChatCompletion`, `Stream[...]`) are unchanged.
+- `client.copy(...)` and `client.with_options(...)` return CAELUM clients sharing the same
+  cache and metrics.
+- Errors are the SDK's own exceptions (`openai.RateLimitError`, `openai.BadRequestError`...).
+- Known limitation: `isinstance(client, openai.OpenAI)` is `False` at runtime (CAELUM wraps
+  the SDK client rather than subclassing it).
+
+## OpenAI-compatible providers
+
+Many providers expose an OpenAI-compatible API. Point `base_url` to them and CAELUM works the
+same way (cache, retries, metrics). The cache namespace includes the `base_url`, so answers
+from different providers are never mixed up.
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(base_url="https://api.deepseek.com", api_key="...", cache=True)
+```
+
+| Provider | `base_url` (check the provider's docs) |
+| --- | --- |
+| DeepSeek | `https://api.deepseek.com` |
+| Groq | `https://api.groq.com/openai/v1` |
+| xAI (Grok) | `https://api.x.ai/v1` |
+| Ollama (local, see [Local models](/local-models)) | `http://localhost:11434/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+
+Our real-API tests run through OpenRouter on models from 16 families (Mistral, DeepSeek,
+Llama, Qwen, Gemma, Grok, Phi, Cohere, Amazon Nova, Kimi, GLM, Nemotron, Granite, MiniMax,
+Perplexity Sonar, Solar): the cache works on all of them, and streaming is checked too. Providers called directly are
+not in our test suite: compatibility depends on how closely each one follows the OpenAI API. Costs are only estimated for models in `caelum.pricing`; add yours
+with `caelum.pricing.register_price(...)`.

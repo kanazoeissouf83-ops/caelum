@@ -1,0 +1,68 @@
+---
+title: "FAQ"
+description: "Security, privacy, cost, and how CAELUM compares."
+---
+
+### Does CAELUM see my prompts or my API keys?
+
+No. In local mode the SDK calls your provider directly with your own keys. The cache and
+the metrics stay on your machine. Nothing is sent to CAELUM.
+
+### What is stored on disk?
+
+With `cache=True` or `semantic_cache=True`: requests' answers (and question embeddings for
+the semantic cache) in a local SQLite file, `~/.caelum/cache.sqlite` by default. Values are
+JSON, never `pickle`. Delete the file to wipe the cache.
+
+### Does the semantic cache send data anywhere?
+
+To compute an embedding, the question text is sent to the embedding provider (OpenAI by
+default). With an OpenAI client, that is the provider you already use. With an Anthropic
+client you must pass an embedder explicitly, so this never happens by surprise.
+
+### Can a cached answer be wrong?
+
+The exact cache only reuses an answer for a request identical in every parameter that
+affects the answer. The semantic cache only compares questions asked in the same context
+(model, system prompt, history, tools), and a small verifier model must confirm that both
+questions ask for exactly the same thing (asked in both orders). On our calibration set this
+served no wrong answer. Without a verifier, the strict 0.97 threshold applies: lower it only
+after testing on your own traffic.
+
+### What does CAELUM cost?
+
+The SDK is free and open source (Apache 2.0). You keep paying your providers directly;
+CAELUM does not resell tokens.
+
+### How much latency does it add?
+
+Measured: under 1 ms at p95 (+0.25 to +0.56 ms) on cache misses (target < 5 ms, ceiling 10 ms). A cache hit
+skips the network and answers in well under a millisecond. The semantic cache adds an
+embedding API call on lookups — that is the price of opting in.
+
+### What happens if the cache file is corrupted or the disk is full?
+
+CAELUM logs a warning and calls the API normally. A CAELUM failure never breaks a request
+that would have worked without it.
+
+### Does it change my errors or response types?
+
+No. You get the SDK's own objects (`ChatCompletion`, `Message`) and exceptions
+(`openai.RateLimitError`...), and type checkers see the SDK classes.
+
+### How is CAELUM different from LiteLLM or OpenRouter?
+
+LiteLLM offers its own unified API and a proxy server to operate; OpenRouter is a hosted
+aggregator through which your traffic and billing go. CAELUM keeps your existing SDK code,
+your providers and your keys, needs no server, and runs locally. Use whatever fits your
+team — they solve different problems.
+
+### Which providers are supported?
+
+OpenAI and Anthropic (all features), Google Gemini and Mistral (exact cache, retries,
+metrics), and local models (Ollama, llama.cpp, vLLM, LM Studio) as fallback or routing
+targets. OpenAI-compatible APIs (OpenRouter, DeepSeek, Groq...) work through `base_url`.
+
+```bash
+pip install "caelum-ai[openai,anthropic]"
+```

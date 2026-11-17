@@ -1,0 +1,96 @@
+---
+title: "Routing"
+description: "Send each request to the cheapest model able to answer it."
+---
+
+Routing is CAELUM's second pillar: a simple rewording does not need your most expensive
+model. You describe the rules; CAELUM applies them on every request — and your code
+keeps receiving the response type it asked for.
+
+<Note>
+Routing is **disabled by default**. CAELUM never chooses a model on its own: only your
+rules decide.
+</Note>
+
+## Quick start
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(router_config="router.yaml")  # or a dict, or a .json file
+```
+
+```yaml
+routes:
+  - name: cheap-reformulation
+    match:
+      messages_max_tokens: 500
+      system_contains: ["reformulate", "rewrite", "paraphrase"]
+    target: claude-haiku-5-5
+    provider: anthropic
+  - name: complex-reasoning
+    match:
+      messages_min_tokens: 2000
+    target: gpt-4o
+    provider: openai
+default:            # optional
+  target: gpt-4o-mini
+  provider: openai
+```
+
+YAML files need `pip install "caelum-ai[yaml]"`. Dicts and JSON files need nothing extra.
+
+## Rules
+
+Routes are tried **in order; the first match wins**. All conditions of a route must hold.
+Without a `default`, a request that matches no route keeps its model.
+
+| Condition | Matches when |
+|---|---|
+| `messages_max_tokens` | Estimated prompt size ≤ value (about 4 characters per token). |
+| `messages_min_tokens` | Estimated prompt size ≥ value. |
+| `system_contains` | The system prompt contains **any** of the words (case-insensitive). |
+| `user_contains` | A user message contains **any** of the words (case-insensitive). |
+| `models` | The requested model is in the list. |
+| `has_tools` | The request does (`true`) or does not (`false`) define tools. |
+
+Validation is strict: an unknown key, a wrong type or an unsupported provider raises an
+error when the client is created, not in production.
+
+## Routing to another provider
+
+When a route targets another provider, CAELUM translates the request (messages, system
+prompt, images, tools, tool calls, stop sequences, max tokens) and translates the answer
+back. An OpenAI client still receives a `ChatCompletion`; an Anthropic client still
+receives a `Message`.
+
+- Each provider needs **its own API key**: `provider_keys={"anthropic": "sk-ant-..."}` or
+  the SDK environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`).
+- Sampling settings without a Claude equivalent are dropped when sending to Claude:
+  `temperature`, `top_p` (rejected by current Claude models), `seed`,
+  `presence_penalty`, `frequency_penalty`, and the optional `name` of messages. The
+  answer is still correct, only less tunable. When sending a Claude request to OpenAI,
+  `thinking` and `cache_control` hints are dropped the same way.
+- If a request cannot be translated faithfully — `n > 1`, logprobs, audio, structured
+  `response_format`, forced tool choice towards Claude, streaming — **it is not routed**:
+  it goes to the requested model unchanged.
+
+## Inspecting decisions
+
+```python
+import caelum
+
+response = client.chat.completions.create(model="gpt-4o", messages=[...])
+caelum.routed_to(response)          # "claude-haiku-5-5", or None if not routed
+response._caelum_route              # "cheap-reformulation"
+client.metrics.summary()["routed"]  # number of routed requests
+```
+
+Cached answers are stored under the model that actually answered, so changing your
+rules never serves an answer from the wrong model.
+
+## Supported providers
+
+`openai` and `anthropic`, plus the local servers `ollama`, `llamacpp`, `vllm` and
+`lmstudio` (see [Local models](/local-models)). Routing to Gemini and Mistral is not
+supported yet.

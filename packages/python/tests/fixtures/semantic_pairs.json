@@ -1,0 +1,559 @@
+{
+  "description": "Calibration set for the semantic cache. 'similar' pairs must share the same answer (paraphrases). 'different' pairs look alike but need different answers: any hit on them is a false positive. The first 50 + 50 pairs are English; the next 20 + 20 are French and West African (cities, Mobile Money, fabrics).",
+  "similar": [
+    [
+      "How do I return an item?",
+      "How can I send back a product I bought?"
+    ],
+    [
+      "What are your opening hours?",
+      "When are you open?"
+    ],
+    [
+      "How do I reset my password?",
+      "I forgot my password, how can I change it?"
+    ],
+    [
+      "Do you ship internationally?",
+      "Can you deliver to other countries?"
+    ],
+    [
+      "How long does delivery take?",
+      "How many days until my order arrives?"
+    ],
+    [
+      "Can I cancel my order?",
+      "Is it possible to cancel an order I placed?"
+    ],
+    [
+      "What payment methods do you accept?",
+      "Which ways can I pay?"
+    ],
+    [
+      "How do I contact customer support?",
+      "How can I reach your support team?"
+    ],
+    [
+      "Where is my order?",
+      "Can you tell me where my package is?"
+    ],
+    [
+      "Do you offer refunds?",
+      "Can I get my money back?"
+    ],
+    [
+      "How do I create an account?",
+      "How can I sign up?"
+    ],
+    [
+      "Is there a student discount?",
+      "Do students get a discount?"
+    ],
+    [
+      "How do I change my shipping address?",
+      "Can I update the delivery address on my order?"
+    ],
+    [
+      "What is your phone number?",
+      "Which number can I call you on?"
+    ],
+    [
+      "How do I delete my account?",
+      "I want to close my account, how do I do it?"
+    ],
+    [
+      "Do you have a mobile app?",
+      "Is there an app for your service?"
+    ],
+    [
+      "How do I track my package?",
+      "How can I follow my shipment?"
+    ],
+    [
+      "Can I change the size of my order?",
+      "Is it possible to exchange for a different size?"
+    ],
+    [
+      "How do I apply a promo code?",
+      "Where do I enter a discount code?"
+    ],
+    [
+      "Are your products vegan?",
+      "Do your products contain animal ingredients?"
+    ],
+    [
+      "How do I unsubscribe from emails?",
+      "How can I stop receiving your newsletters?"
+    ],
+    [
+      "What is the warranty period?",
+      "How long is the warranty?"
+    ],
+    [
+      "Do you price match?",
+      "Will you match a competitor's price?"
+    ],
+    [
+      "How do I update my credit card?",
+      "How can I change my payment card?"
+    ],
+    [
+      "Can I pick up my order in store?",
+      "Is in-store pickup available?"
+    ],
+    [
+      "What is the capital of France?",
+      "Which city is the capital of France?"
+    ],
+    [
+      "Translate 'good morning' into Spanish.",
+      "How do you say 'good morning' in Spanish?"
+    ],
+    [
+      "What is 15% of 200?",
+      "Calculate fifteen percent of 200."
+    ],
+    [
+      "Who wrote Romeo and Juliet?",
+      "Who is the author of Romeo and Juliet?"
+    ],
+    [
+      "What is the boiling point of water?",
+      "At what temperature does water boil?"
+    ],
+    [
+      "Explain what an API is.",
+      "What does API mean?"
+    ],
+    [
+      "How many continents are there?",
+      "What is the number of continents on Earth?"
+    ],
+    [
+      "What does HTTP stand for?",
+      "What is the full form of HTTP?"
+    ],
+    [
+      "Summarize the benefits of exercise.",
+      "What are the main benefits of exercising?"
+    ],
+    [
+      "How do I install Python on Windows?",
+      "What are the steps to install Python on a Windows PC?"
+    ],
+    [
+      "Comment retourner un article ?",
+      "Comment puis-je renvoyer un produit acheté ?"
+    ],
+    [
+      "Quels sont vos horaires d'ouverture ?",
+      "À quelle heure ouvrez-vous ?"
+    ],
+    [
+      "Comment réinitialiser mon mot de passe ?",
+      "J'ai oublié mon mot de passe, comment le changer ?"
+    ],
+    [
+      "Livrez-vous à l'étranger ?",
+      "Expédiez-vous dans d'autres pays ?"
+    ],
+    [
+      "Combien de temps prend la livraison ?",
+      "En combien de jours ma commande arrive-t-elle ?"
+    ],
+    [
+      "Puis-je annuler ma commande ?",
+      "Est-il possible d'annuler une commande ?"
+    ],
+    [
+      "Quels moyens de paiement acceptez-vous ?",
+      "Comment puis-je payer ?"
+    ],
+    [
+      "Comment contacter le service client ?",
+      "Comment joindre votre support ?"
+    ],
+    [
+      "Où est ma commande ?",
+      "Pouvez-vous me dire où se trouve mon colis ?"
+    ],
+    [
+      "Proposez-vous des remboursements ?",
+      "Puis-je être remboursé ?"
+    ],
+    [
+      "Comment créer un compte ?",
+      "Comment m'inscrire ?"
+    ],
+    [
+      "Quelle est la capitale du Burkina Faso ?",
+      "Quelle ville est la capitale du Burkina Faso ?"
+    ],
+    [
+      "Comment supprimer mon compte ?",
+      "Je veux fermer mon compte, comment faire ?"
+    ],
+    [
+      "Avez-vous une application mobile ?",
+      "Existe-t-il une appli pour votre service ?"
+    ],
+    [
+      "Comment suivre mon colis ?",
+      "Comment puis-je suivre mon envoi ?"
+    ],
+    [
+      "Livrez-vous à Bobo-Dioulasso ?",
+      "Est-ce que vous faites la livraison à Bobo-Dioulasso ?"
+    ],
+    [
+      "Comment retourner un article ?",
+      "Comment faire pour renvoyer un produit ?"
+    ],
+    [
+      "Acceptez-vous Orange Money ?",
+      "Puis-je payer avec Orange Money ?"
+    ],
+    [
+      "Combien de temps prend la livraison ?",
+      "Quel est le délai de livraison ?"
+    ],
+    [
+      "Comment suivre ma commande ?",
+      "Où puis-je voir l'état de ma commande ?"
+    ],
+    [
+      "Avez-vous des pagnes wax ?",
+      "Vendez-vous du tissu wax ?"
+    ],
+    [
+      "Comment créer un compte ?",
+      "Comment est-ce que je m'inscris sur votre site ?"
+    ],
+    [
+      "J'ai oublié mon mot de passe, que faire ?",
+      "Comment réinitialiser mon mot de passe ?"
+    ],
+    [
+      "La livraison est-elle gratuite ?",
+      "Est-ce que la livraison est offerte ?"
+    ],
+    [
+      "Où se trouve votre boutique à Ouagadougou ?",
+      "Quelle est l'adresse de votre magasin à Ouagadougou ?"
+    ],
+    [
+      "Proposez-vous le paiement à la livraison ?",
+      "Peut-on payer à la réception du colis ?"
+    ],
+    [
+      "Do you ship to Accra?",
+      "Can you deliver to Accra?"
+    ],
+    [
+      "Do you accept Mobile Money?",
+      "Can I pay with Mobile Money?"
+    ],
+    [
+      "Vos produits sont-ils garantis ?",
+      "Y a-t-il une garantie sur vos produits ?"
+    ],
+    [
+      "Comment contacter le service client ?",
+      "Comment joindre votre service client ?"
+    ],
+    [
+      "Faites-vous des prix pour les grossistes ?",
+      "Avez-vous des tarifs de gros ?"
+    ],
+    [
+      "Quelles tailles proposez-vous pour les robes ?",
+      "Dans quelles tailles vendez-vous vos robes ?"
+    ],
+    [
+      "Est-ce que vous livrez le dimanche ?",
+      "Faites-vous des livraisons le dimanche ?"
+    ],
+    [
+      "Quels sont vos horaires d'ouverture ?",
+      "À quelles heures êtes-vous ouverts ?"
+    ]
+  ],
+  "different": [
+    [
+      "What is the return window for shoes?",
+      "What is the return window for electronics?"
+    ],
+    [
+      "How do I return an item bought online?",
+      "How do I return an item bought in a store?"
+    ],
+    [
+      "What are your opening hours on Sunday?",
+      "What are your opening hours on Monday?"
+    ],
+    [
+      "Do you ship to Canada?",
+      "Do you ship to Mexico?"
+    ],
+    [
+      "How long does express delivery take?",
+      "How long does standard delivery take?"
+    ],
+    [
+      "Can I cancel my subscription?",
+      "Can I pause my subscription?"
+    ],
+    [
+      "Do you accept PayPal?",
+      "Do you accept Bitcoin?"
+    ],
+    [
+      "How do I reset my password on iPhone?",
+      "How do I reset my password on Android?"
+    ],
+    [
+      "What is the price of the basic plan?",
+      "What is the price of the premium plan?"
+    ],
+    [
+      "How do I add a user to my team?",
+      "How do I remove a user from my team?"
+    ],
+    [
+      "What is the capital of France?",
+      "What is the capital of Germany?"
+    ],
+    [
+      "Translate 'good morning' into Spanish.",
+      "Translate 'good morning' into Italian."
+    ],
+    [
+      "What is 15% of 200?",
+      "What is 25% of 200?"
+    ],
+    [
+      "Who wrote Romeo and Juliet?",
+      "Who wrote Hamlet?"
+    ],
+    [
+      "What is the boiling point of water?",
+      "What is the freezing point of water?"
+    ],
+    [
+      "What is the population of Nigeria?",
+      "What is the population of Ghana?"
+    ],
+    [
+      "Convert 10 miles to kilometers.",
+      "Convert 10 kilometers to miles."
+    ],
+    [
+      "What year did World War I start?",
+      "What year did World War II start?"
+    ],
+    [
+      "How do I sort a list in Python?",
+      "How do I sort a list in JavaScript?"
+    ],
+    [
+      "What does HTTP stand for?",
+      "What does HTTPS stand for?"
+    ],
+    [
+      "Is coffee good for health?",
+      "Is coffee bad for health?"
+    ],
+    [
+      "Write a poem about the sea.",
+      "Write a poem about the mountains."
+    ],
+    [
+      "Summarize the benefits of exercise.",
+      "Summarize the risks of exercise."
+    ],
+    [
+      "How do I install Python on Windows?",
+      "How do I install Python on macOS?"
+    ],
+    [
+      "What is the weather like in summer in Paris?",
+      "What is the weather like in winter in Paris?"
+    ],
+    [
+      "Give me a vegetarian recipe for dinner.",
+      "Give me a vegan recipe for dinner."
+    ],
+    [
+      "How do I increase my credit limit?",
+      "How do I decrease my credit limit?"
+    ],
+    [
+      "What is the largest planet in the solar system?",
+      "What is the smallest planet in the solar system?"
+    ],
+    [
+      "List three benefits of remote work.",
+      "List three drawbacks of remote work."
+    ],
+    [
+      "How many grams in a kilogram?",
+      "How many grams in a pound?"
+    ],
+    [
+      "What is the speed of light?",
+      "What is the speed of sound?"
+    ],
+    [
+      "When is the next full moon?",
+      "When is the next new moon?"
+    ],
+    [
+      "What is the dosage of ibuprofen for adults?",
+      "What is the dosage of ibuprofen for children?"
+    ],
+    [
+      "How do I upgrade my plan?",
+      "How do I downgrade my plan?"
+    ],
+    [
+      "Is the store open today?",
+      "Is the store open tomorrow?"
+    ],
+    [
+      "Quel est le délai de retour pour les chaussures ?",
+      "Quel est le délai de retour pour l'électronique ?"
+    ],
+    [
+      "Livrez-vous au Ghana ?",
+      "Livrez-vous au Sénégal ?"
+    ],
+    [
+      "Quelle est la capitale du Burkina Faso ?",
+      "Quelle est la capitale du Mali ?"
+    ],
+    [
+      "Comment ajouter un utilisateur ?",
+      "Comment supprimer un utilisateur ?"
+    ],
+    [
+      "Quel est le prix de l'offre Starter ?",
+      "Quel est le prix de l'offre Pro ?"
+    ],
+    [
+      "Traduis 'bonjour' en anglais.",
+      "Traduis 'bonjour' en allemand."
+    ],
+    [
+      "Combien font 12 fois 8 ?",
+      "Combien font 12 fois 9 ?"
+    ],
+    [
+      "Êtes-vous ouverts le samedi ?",
+      "Êtes-vous ouverts le dimanche ?"
+    ],
+    [
+      "Comment activer la double authentification ?",
+      "Comment désactiver la double authentification ?"
+    ],
+    [
+      "Quel temps fera-t-il demain à Ouagadougou ?",
+      "Quel temps fera-t-il demain à Bobo-Dioulasso ?"
+    ],
+    [
+      "Rédige un e-mail de remerciement à un client.",
+      "Rédige un e-mail d'excuse à un client."
+    ],
+    [
+      "Quels sont les avantages du télétravail ?",
+      "Quels sont les inconvénients du télétravail ?"
+    ],
+    [
+      "Comment augmenter mon plafond de carte ?",
+      "Comment baisser mon plafond de carte ?"
+    ],
+    [
+      "Qui a écrit Les Misérables ?",
+      "Qui a écrit Le Petit Prince ?"
+    ],
+    [
+      "Combien coûte la livraison express ?",
+      "Combien coûte la livraison standard ?"
+    ],
+    [
+      "Livrez-vous à Bobo-Dioulasso ?",
+      "Livrez-vous à Ouagadougou ?"
+    ],
+    [
+      "Comment retourner un article ?",
+      "Comment échanger un article ?"
+    ],
+    [
+      "Acceptez-vous Orange Money ?",
+      "Acceptez-vous Moov Money ?"
+    ],
+    [
+      "Quel est le délai de livraison standard ?",
+      "Quel est le délai de livraison express ?"
+    ],
+    [
+      "Avez-vous des pagnes wax ?",
+      "Avez-vous des pagnes Faso Dan Fani ?"
+    ],
+    [
+      "Comment créer un compte ?",
+      "Comment supprimer mon compte ?"
+    ],
+    [
+      "La livraison est-elle gratuite à Ouagadougou ?",
+      "La livraison est-elle gratuite à Bobo-Dioulasso ?"
+    ],
+    [
+      "Où se trouve votre boutique à Ouagadougou ?",
+      "Où se trouve votre boutique à Abidjan ?"
+    ],
+    [
+      "Puis-je annuler ma commande ?",
+      "Puis-je modifier ma commande ?"
+    ],
+    [
+      "Proposez-vous le paiement à la livraison ?",
+      "Proposez-vous le paiement en plusieurs fois ?"
+    ],
+    [
+      "Do you ship to Accra?",
+      "Do you ship to Kumasi?"
+    ],
+    [
+      "Comment retourner un article acheté en ligne ?",
+      "Comment retourner un article acheté en boutique ?"
+    ],
+    [
+      "Vendez-vous des chaussures pour homme ?",
+      "Vendez-vous des chaussures pour femme ?"
+    ],
+    [
+      "Vos produits sont-ils garantis ?",
+      "Vos produits sont-ils remboursables ?"
+    ],
+    [
+      "Comment devenir revendeur ?",
+      "Comment devenir livreur ?"
+    ],
+    [
+      "Faites-vous des réductions pour les étudiants ?",
+      "Faites-vous des réductions pour les grossistes ?"
+    ],
+    [
+      "Quelles tailles proposez-vous pour les robes ?",
+      "Quelles couleurs proposez-vous pour les robes ?"
+    ],
+    [
+      "Est-ce que vous livrez le dimanche ?",
+      "Est-ce que vous livrez le samedi ?"
+    ],
+    [
+      "Le paiement par carte est-il sécurisé ?",
+      "Le paiement par Mobile Money est-il sécurisé ?"
+    ]
+  ]
+}

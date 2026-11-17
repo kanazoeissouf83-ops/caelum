@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" role="img" aria-labelledby="t d">
+  <title id="t">CAELUM architecture</title>
+  <desc id="d">Your app calls the CAELUM SDK, which applies cache, routing, retry and fallback, then calls OpenAI or Anthropic with your own keys. Cache and metrics are stored locally.</desc>
+  <rect width="760" height="220" rx="10" fill="#0E1A2B"/>
+  <g font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" fill="#F4F0E8" text-anchor="middle">
+    <rect x="24" y="80" width="140" height="60" rx="8" fill="none" stroke="#1F3A5F" stroke-width="2"/>
+    <text x="94" y="106">Your app</text>
+    <text x="94" y="126" font-size="11" fill="#F4F0E8" fill-opacity=".6">from caelum import OpenAI</text>
+
+    <rect x="224" y="30" width="270" height="160" rx="8" fill="#1F3A5F" fill-opacity=".25" stroke="#B8924A" stroke-width="2"/>
+    <text x="359" y="56" fill="#B8924A" font-weight="600" letter-spacing="3">CAELUM SDK</text>
+    <text x="359" y="86">exact + semantic cache</text>
+    <text x="359" y="108">routing by config</text>
+    <text x="359" y="130">retries + fallback</text>
+    <text x="359" y="152">metrics + cost</text>
+    <text x="359" y="176" font-size="11" fill-opacity=".6">runs in your process</text>
+
+    <rect x="556" y="30" width="180" height="60" rx="8" fill="none" stroke="#1F3A5F" stroke-width="2"/>
+    <text x="646" y="66">OpenAI</text>
+    <rect x="556" y="130" width="180" height="60" rx="8" fill="none" stroke="#1F3A5F" stroke-width="2"/>
+    <text x="646" y="166">Anthropic</text>
+  </g>
+  <g stroke="#B8924A" stroke-width="2" fill="none">
+    <path d="M164 110 H224"/>
+    <path d="M494 80 H525 V60 H556"/>
+    <path d="M494 140 H525 V160 H556"/>
+  </g>
+  <g fill="#B8924A">
+    <path d="M224 110 l-8 -5 v10 z"/>
+    <path d="M556 60 l-8 -5 v10 z"/>
+    <path d="M556 160 l-8 -5 v10 z"/>
+  </g>
+</svg>

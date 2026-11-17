@@ -1,0 +1,12 @@
+# Secret scanning (gitleaks), run in CI on every push and pull request.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders, not real keys"
+# WHY: CONTEXTE.md shows fake keys like "sk-proj-abc123..." in its user stories.
+regexTarget = "line"
+regexes = [
+  '''api_key="sk-(proj|ant)-[a-z0-9.]{0,12}(\.\.\.)?"''',
+  '''sk-caelum[-_][a-z_-]*[0-9a-f]{0,16}\.\.\.''',
+]

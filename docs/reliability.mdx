@@ -1,0 +1,112 @@
+---
+title: "Reliability"
+description: "Survive rate limits, overloads and network hiccups without changing your code."
+---
+
+## Retries
+
+CAELUM can retry transient provider errors for you, with exponential backoff and jitter.
+
+```python
+from caelum import OpenAI, RetryPolicy
+
+client = OpenAI(retry=True)  # sensible defaults
+
+client = OpenAI(
+    retry=RetryPolicy(max_retries=5, initial_delay=0.5, max_delay=20, jitter=0.5)
+)
+```
+
+<Note>
+Retries are **disabled by default**: without `retry=`, the provider SDK's own retry
+behaviour is left exactly as it is.
+</Note>
+
+### What is retried
+
+| Retried | Never retried |
+|---|---|
+| `429` rate limit | `400` bad request |
+| `500`, `502`, `503`, `504` server errors | `401` / `403` authentication and permission |
+| `529` Anthropic overloaded | `404` not found, `422` validation |
+| Timeouts and network errors | Any other client error |
+
+### Delays
+
+- Retry `n` waits `initial_delay × 2ⁿ` plus a random jitter in `[0, jitter]` seconds,
+  capped at `max_delay`.
+- If the provider sends `Retry-After` (seconds or HTTP date) or `retry-after-ms`, that
+  delay is used instead (still capped at `max_delay`).
+
+| `RetryPolicy` field | Default | Meaning |
+|---|---|---|
+| `max_retries` | `3` | Retries after the first attempt. |
+| `initial_delay` | `1.0` | Seconds before the first retry. |
+| `max_delay` | `30.0` | Upper bound for one delay. |
+| `jitter` | `1.0` | Random extra delay, in seconds. |
+| `retryable_status_codes` | `429, 500, 502, 503, 504, 529` | Statuses worth retrying. |
+
+### Interaction with the SDK's `max_retries`
+
+The OpenAI and Anthropic SDKs already retry twice by default (`max_retries=2`). When you
+enable CAELUM retries, CAELUM sets the SDK's `max_retries` to `0` so attempts never
+multiply — unless you pass `max_retries` yourself, in which case your value is kept.
+
+### Errors stay the same
+
+When every attempt fails, CAELUM re-raises **the original SDK exception**
+(`openai.RateLimitError`, `anthropic.OverloadedError`...), so your existing `except`
+blocks keep working. The attempt history is attached:
+
+```python
+import openai
+
+try:
+    client.chat.completions.create(...)
+except openai.RateLimitError as error:
+    print(error._caelum_retry_history)  # ['RateLimitError(429)', 'RateLimitError(429)', ...]
+```
+
+On Python 3.11+ the history also appears in the traceback as an exception note.
+
+### Observability
+
+Each retry is logged on the `caelum` logger (level `WARNING`) with structured fields
+(`caelum_attempt`, `caelum_delay_s`, `caelum_status`, `caelum_error`) and counted in
+`client.metrics.summary()["retries"]`.
+
+## Multi-provider fallback
+
+When a provider is down, CAELUM can answer with another one — your users notice nothing.
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(
+    fallback=["anthropic:claude-sonnet-5-5", "openai:gpt-4o-mini"],
+    provider_keys={"anthropic": "sk-ant-..."},  # or ANTHROPIC_API_KEY
+)
+```
+
+- Tiers are tried **in order** after the primary request fails with a transient error
+  (429, 5xx, 529, timeout, network) — after CAELUM retries, if enabled.
+- Each tier names a provider **and a model**: CAELUM never picks a model for you.
+- Each provider needs **its own API key**. CAELUM does not resell tokens. Local models
+  (`"ollama:qwen3:1.7b"`...) need no key and cost nothing: see [Local models](/local-models).
+- Requests are translated across providers and the answer comes back in your format
+  (a `ChatCompletion` for OpenAI clients, a `Message` for Anthropic clients).
+- Client errors (400, 401, 403, 404, 422) **never** trigger a fallback: they would fail
+  everywhere and would hide a bug in your code.
+- Fallback answers are **not cached**: the next request tries the primary again.
+- Streaming requests only fall back to tiers speaking the **same API format** (an OpenAI
+  client can stream from OpenAI or a local model; OpenAI <-> Anthropic streaming is not
+  translated yet). Requests that cannot be translated faithfully skip
+  cross-provider tiers.
+- If every tier fails, the **original error** is raised.
+
+```python
+import caelum
+
+caelum.routed_to(response)              # "claude-sonnet-5-5" if a fallback answered
+client.metrics.summary()["fallbacks"]   # how many times a fallback was used
+```

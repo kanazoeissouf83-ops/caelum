@@ -1,0 +1,46 @@
+---
+title: "Introduction"
+description: "The control plane for AI inference."
+---
+
+CAELUM sits between your application and the model providers (OpenAI, Anthropic, Google
+Gemini, Mistral, and local models such as Ollama). It does two things that cut your inference bill: it **reuses answers to
+questions already asked** instead of paying for them again, and it **sends each request
+to the cheapest model able to answer it**.
+
+You keep your code, your provider accounts and your API keys. You change one import:
+
+```python
+from caelum import OpenAI  # instead of: from openai import OpenAI
+
+client = OpenAI(cache=True)
+```
+
+Everything else — streaming, tools, vision, errors, types — behaves exactly like the
+official SDK. On top of it, CAELUM adds local observability, smart retries and automatic
+fallback between providers, all opt-in.
+
+```python
+client = OpenAI(
+    cache=True,                                   # exact cache
+    semantic_cache=True,                          # similar questions reuse answers
+    retry=True,                                   # survive rate limits and outages
+    fallback=["anthropic:claude-sonnet-5-5"],     # switch provider when one is down
+)
+client.metrics.print_summary()                    # see what you saved
+```
+
+## Principles
+
+- **Drop-in.** Same arguments, methods, objects and static types as the official SDK.
+- **Opt-in.** Every feature that can change an answer is off until you enable it.
+- **Local-first.** The cache and metrics live on your machine. Nothing is sent to CAELUM.
+- **Neutral.** CAELUM never resells tokens and never picks a provider or model for you.
+- **Lightweight.** Two core dependencies; provider SDKs are optional extras.
+- **Fast.** Measured overhead: under 1 ms at p95 on cache misses (target < 5 ms).
+
+```bash
+pip install "caelum-ai[openai]"
+```
+
+Next: the [quick start](/quick-start).

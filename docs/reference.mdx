@@ -1,0 +1,84 @@
+---
+title: "API reference"
+description: "Every public CAELUM class, option and helper."
+---
+
+## Clients
+
+`caelum.OpenAI`, `caelum.AsyncOpenAI`, `caelum.Anthropic`, `caelum.AsyncAnthropic` accept
+all the arguments of the matching SDK client, plus:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `cache` | `bool` | `False` | Exact response cache. |
+| `cache_ttl` | `float \| None` | `86400` | Cache lifetime in seconds (`None` = forever). |
+| `cache_path` | path | `~/.caelum/cache.sqlite` | Cache file (`$CAELUM_HOME` changes the base directory). |
+| `cache_store` | `CacheStore` | — | Custom exact-cache backend. |
+| `semantic_cache` | `bool` | `False` | Semantic cache. |
+| `semantic_threshold` | `float \| None` | `0.60` with a verifier, `0.97` without | Minimum cosine similarity of a candidate, in `(0, 1]`. |
+| `semantic_verifier` | `LLMVerifier`, verifier, `bool` | `gpt-4o-mini` (OpenAI clients) | Judge confirming each semantic match; `False` disables it. |
+| `semantic_embedder` | embedder | OpenAI (OpenAI clients) | Embedder; required for Anthropic clients. |
+| `retry` | `bool \| RetryPolicy` | `None` | CAELUM retries (turns off the SDK's own retries). |
+| `router_config` | dict, path, `RouterConfig` | `None` | Routing rules. |
+| `fallback` | list of tiers, `FallbackChain` | `None` | Fallback tiers, e.g. `"anthropic:claude-sonnet-5-5"`. |
+| `provider_keys` | `dict[str, str]` | env vars | API keys of other providers. |
+| `provider_clients` | `dict[str, client]` | — | Ready-made raw SDK clients of other providers. |
+
+Every client also exposes `client.metrics` (a `caelum.Metrics`).
+
+```python
+from caelum import OpenAI, RetryPolicy
+
+client = OpenAI(
+    cache=True,
+    cache_ttl=3600,
+    retry=RetryPolicy(max_retries=5),
+    router_config="router.yaml",
+    fallback=["anthropic:claude-sonnet-5-5"],
+)
+```
+
+## Helpers
+
+| Function | Returns |
+|---|---|
+| `caelum.cache_hit(response)` | `True` if served from a cache. |
+| `caelum.cache_type(response)` | `"exact"`, `"semantic"` or `None`. |
+| `caelum.routed_to(response)` | Model that answered after routing/fallback, or `None`. |
+
+```python
+import caelum
+
+if caelum.cache_hit(response):
+    print("free answer, type:", caelum.cache_type(response))
+```
+
+## Classes
+
+| Class | Purpose |
+|---|---|
+| `caelum.Metrics` | `summary()`, `print_summary()`, `format_summary()`, `export_json(path)`, `reset()`. |
+| `caelum.RetryPolicy` | `max_retries`, `initial_delay`, `max_delay`, `jitter`, `retryable_status_codes`. |
+| `caelum.RouterConfig` | `RouterConfig.load(dict \| path)`, `RouterConfig.from_dict(dict)`. |
+| `caelum.FallbackChain` | `FallbackChain.parse([...])`. |
+| `caelum.OpenAIEmbedder` | `OpenAIEmbedder(client=None, *, async_client=None, api_key=None, model=...)`. |
+| `caelum.cache.CacheStore` | Abstract exact-cache backend (`get`, `set`, `delete`, `clear`, `close`). |
+| `caelum.cache.SQLiteStore`, `SQLiteVectorStore` | Default local backends. |
+| `caelum.cache.EmbeddingResult` | `vector: list[float]`, `tokens: int` (custom embedders). |
+
+```python
+from caelum import pricing
+
+pricing.estimate_cost("gpt-4o-mini", input_tokens=1000, output_tokens=200)
+pricing.register_price("my-model", input_per_1m=1.0, output_per_1m=4.0)
+```
+
+## Extras
+
+| Extra | Installs |
+|---|---|
+| `openai` | OpenAI SDK |
+| `anthropic` | Anthropic SDK |
+| `rich` | Pretty metrics tables |
+| `fast` | numpy (faster semantic search on large caches) |
+| `yaml` | PyYAML (YAML router files) |

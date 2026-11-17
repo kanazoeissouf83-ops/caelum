@@ -1,0 +1,66 @@
+name: CI Python
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-python-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14"]
+    defaults:
+      run:
+        working-directory: packages/python
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # WHY: the Python package is created on day 3. Until then the job reports
+      # success so it can already be a required status check on main.
+      - name: Detect Python package
+        id: detect
+        working-directory: .
+        run: |
+          if [ -f packages/python/pyproject.toml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "packages/python/pyproject.toml not found yet — skipping checks."
+          fi
+
+      - name: Install uv
+        if: steps.detect.outputs.present == 'true'
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        if: steps.detect.outputs.present == 'true'
+        run: uv sync --locked --all-extras --dev
+
+      - name: Format check (ruff)
+        if: steps.detect.outputs.present == 'true'
+        run: uv run ruff format --check .
+
+      - name: Lint (ruff)
+        if: steps.detect.outputs.present == 'true'
+        run: uv run ruff check .
+
+      - name: Type check (pyright)
+        if: steps.detect.outputs.present == 'true'
+        run: uv run pyright
+
+      - name: Tests (pytest)
+        if: steps.detect.outputs.present == 'true'
+        run: uv run pytest

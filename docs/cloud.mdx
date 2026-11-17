@@ -1,0 +1,112 @@
+---
+title: "CAELUM Cloud"
+description: "A shared cache for all your servers, cost per customer, and budget alerts."
+---
+
+CAELUM Cloud is optional. Without it, CAELUM works fully on your machine. With a CAELUM key,
+the same SDK also:
+
+- **shares its cache between all your servers**, including short-lived serverless instances
+  (Vercel, AWS Lambda, Cloud Run) where a local cache file disappears after each request;
+- shows **requests, cache hits, money saved and money spent** in a dashboard, per day, per
+  model and **per end customer**;
+- sends **budget alerts** before a surprise provider bill.
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(cache=True, caelum_key="sk-caelum-...")  # or set CAELUM_API_KEY
+```
+
+## Set up in 5 minutes
+
+**1. Create your account.** Sign up at [app.caelum-ai.com](https://app.caelum-ai.com/sign-up)
+with your email. The Free plan needs no card.
+
+**2. Create a key.** In the dashboard, open **API keys**, give the key a name (for example
+`production`) and click **Create key**. Copy it right away: it is shown only once.
+
+**3. Install CAELUM in your app.**
+
+```bash
+pip install "caelum-ai[openai]"   # or [anthropic], [gemini], [mistral]
+```
+
+**4. Give your app the key.** Add it next to your provider key, in your `.env` file or your
+hosting settings (Vercel, Render, Railway, AWS…):
+
+```bash
+OPENAI_API_KEY=sk-...           # your OpenAI key, as before
+CAELUM_API_KEY=sk-caelum-...    # your CAELUM key
+```
+
+**5. Change one import.**
+
+```python
+from caelum import OpenAI  # was: from openai import OpenAI
+
+client = OpenAI(cache=True)  # reads OPENAI_API_KEY and CAELUM_API_KEY
+```
+
+The rest of your code stays the same. Deploy, send a few requests, and open the
+**Overview** page of the dashboard: your requests, cache hits and savings appear within a
+few seconds.
+
+**6. Optional: see the cost of each of your customers.** Wrap the requests of one customer
+in `caelum.customer(...)`: see "Cost per customer" below.
+
+<Note>
+Your AI calls **never go through CAELUM Cloud**: the provider is always called directly, with
+your own API key, which never leaves your application.
+</Note>
+
+## Cost per customer
+
+Attribute requests to one of your own customers to see what each of them costs you:
+
+```python
+import caelum
+
+with caelum.customer("customer-42"):
+    client.chat.completions.create(model="gpt-4o-mini", messages=[...])
+```
+
+It works with threads and asyncio (each task keeps its own value). Cached answers are kept
+separately for each customer: one customer is never served another customer's answer. Use an internal id, not
+personal data such as an email or a name: it is sent to CAELUM Cloud as a label.
+
+## What is sent
+
+| Sent to CAELUM Cloud | Never sent |
+| --- | --- |
+| Model, token counts, estimated cost and savings, cache hit or miss, latency, customer label | Your provider API keys |
+| With `cache=True`: cached answers, in your own isolated account | Prompts in the metrics |
+
+Each account's cache is isolated: another CAELUM customer can never read your cached
+answers. Only a hash of your CAELUM key is stored on our side.
+
+## CAELUM Cloud never breaks your app
+
+- A cache lookup waits at most **1 s** for the Cloud (usually 0.1-0.3 s: connections are kept
+  open); metrics and shared answers are sent in the background.
+- If the Cloud is slow or unreachable, it is switched off for a minute and the app goes on
+  with its local cache.
+- An invalid or revoked key logs one warning and disables the Cloud for that process.
+- Over the monthly token limit of your plan, the shared cache pauses; metrics are still
+  recorded and your app keeps working.
+
+## Plans
+
+| | Free | Starter |
+| --- | --- | --- |
+| Price | $0 | $29 (17,500 FCFA) per 30 days, prepaid (card or Mobile Money, no automatic charge) |
+| Questions per month (shared cache) | 10,000 | 1,000,000 |
+| Dashboard history | 7 days | 90 days |
+| Cost per end customer | - | yes |
+| Budget alerts by email | - | yes |
+| Repetitions counted across all your servers | - | yes |
+
+A question is one request your app sends through CAELUM, answered from the cache or not.
+CAELUM never sells AI tokens: you keep paying your provider directly, with your own key.
+Over the monthly limit, the shared cache pauses until next month and your app keeps
+working with its local cache. See [Pricing](https://caelum-ai.com/pricing).

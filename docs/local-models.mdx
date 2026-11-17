@@ -1,0 +1,111 @@
+---
+title: "Local models"
+description: "Ollama, llama.cpp, vLLM and LM Studio as a free fallback or routing target."
+---
+
+Local servers run a model on your own machine: no API key, no per-token cost, and they keep
+working when a cloud provider is down. CAELUM supports four of them by name. They all
+expose an OpenAI-compatible API, so they only need the `openai` SDK.
+
+| Provider name | Server | Default address |
+| --- | --- | --- |
+| `ollama` | [Ollama](https://ollama.com) | `http://localhost:11434/v1` |
+| `llamacpp` | llama.cpp `llama-server` | `http://localhost:8080/v1` |
+| `vllm` | vLLM | `http://localhost:8000/v1` |
+| `lmstudio` | LM Studio | `http://localhost:1234/v1` |
+
+## Cloud first, local model as the last resort
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(
+    retry=True,
+    fallback=["anthropic:claude-haiku-5-5", "ollama:qwen3:1.7b"],
+)
+```
+
+If OpenAI fails with a transient error (rate limit, 5xx, timeout, network), CAELUM tries
+Claude, then the local model. Your code still receives a normal `ChatCompletion`.
+`caelum.routed_to(response)` tells you who answered. Local answers count as **$0** in
+`client.metrics`.
+
+The Anthropic client can fall back to a local model too: the request is translated to the
+OpenAI format and the answer translated back into a `Message`.
+
+<Note>
+A local model is usually smaller and slower than a cloud model. Use it as a last resort
+that keeps your product answering, not as an equal replacement.
+</Note>
+
+## Local model first, cloud as the backup
+
+Point the client at the local server with `base_url`:
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:11434/v1",
+    api_key="ollama",  # ignored by the server, required by the SDK
+    fallback=["openai:gpt-4o-mini"],
+    provider_keys={"openai": "sk-..."},  # or OPENAI_API_KEY in the environment
+)
+response = client.chat.completions.create(
+    model="qwen3:1.7b", messages=[{"role": "user", "content": "Hello"}]
+)
+```
+
+CAELUM recognizes a `localhost` address (the port names the server: 11434 = Ollama,
+8080 = llama.cpp, 8000 = vLLM, 1234 = LM Studio). Two consequences:
+
+- requests are counted as **free**, whatever the model is called. If your `localhost`
+  address is a proxy to a paid API (e.g. a LiteLLM proxy forwarding to `gpt-4o`), the
+  cost shown by `client.metrics` will be $0: use the provider's real URL to track costs;
+- the `openai:` fallback tier reaches the real OpenAI API, not your local server.
+
+## Routing simple requests to a local model
+
+```yaml
+routes:
+  - name: short-questions-stay-local
+    match:
+      messages_max_tokens: 200
+    target: qwen3:1.7b
+    provider: ollama
+```
+
+See [Routing](/routing) for the full rule format.
+
+## Streaming
+
+An OpenAI-format client can fall back to a local model while streaming, because both speak
+the same format. Streaming fallback between OpenAI and Anthropic formats is not supported
+yet.
+
+## Another address or machine
+
+| Server | Environment variable |
+| --- | --- |
+| Ollama | `CAELUM_OLLAMA_BASE_URL`, or Ollama's own `OLLAMA_HOST` |
+| llama.cpp | `CAELUM_LLAMACPP_BASE_URL` |
+| vLLM | `CAELUM_VLLM_BASE_URL` |
+| LM Studio | `CAELUM_LMSTUDIO_BASE_URL` |
+
+```bash
+export CAELUM_OLLAMA_BASE_URL=http://gpu-box.local:11434/v1
+```
+
+For full control, pass a ready-made client:
+`provider_clients={"ollama": openai.OpenAI(base_url=..., api_key="x")}`.
+
+## Getting started with Ollama
+
+```bash
+# install from https://ollama.com, then:
+ollama pull qwen3:1.7b
+ollama run qwen3:1.7b "Say hi"   # check that it works
+```
+
+Ollama starts in the background and listens on port 11434. On a laptop without a
+dedicated graphics card, models of 1 to 2 billion parameters are a practical size.

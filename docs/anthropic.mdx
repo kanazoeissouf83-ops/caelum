@@ -1,0 +1,78 @@
+---
+title: "Anthropic"
+description: "caelum.Anthropic and caelum.AsyncAnthropic: drop-in replacements for the Anthropic SDK."
+---
+
+```python
+from caelum import Anthropic, AsyncAnthropic
+```
+
+`caelum.Anthropic` accepts exactly the same arguments as `anthropic.Anthropic`, plus the
+optional CAELUM options.
+
+| Method | CAELUM features |
+|---|---|
+| `messages.create` | exact & semantic cache, routing, fallback, retries, metrics |
+| everything else | forwarded untouched (`messages.stream`, `count_tokens`, `batches`, `beta`...) |
+
+## Messages
+
+```python
+from caelum import Anthropic
+
+client = Anthropic(cache=True)  # reads ANTHROPIC_API_KEY
+message = client.messages.create(
+    model="claude-haiku-5-5",
+    max_tokens=512,
+    system="You answer in one sentence.",
+    messages=[{"role": "user", "content": "What is an inference cache?"}],
+)
+print(message.content[0].text)
+```
+
+<Note>
+Current Claude models reject `temperature`, `top_p` and `top_k`. CAELUM forwards your
+parameters unchanged, so do not send them.
+</Note>
+
+## Streaming helpers
+
+```python
+with client.messages.stream(
+    model="claude-haiku-5-5",
+    max_tokens=512,
+    messages=[{"role": "user", "content": "Count to 5"}],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="")
+```
+
+## Asynchronous
+
+```python
+import asyncio
+from caelum import AsyncAnthropic
+
+async def main() -> None:
+    async with AsyncAnthropic(cache=True) as client:
+        message = await client.messages.create(
+            model="claude-haiku-5-5", max_tokens=256, messages=[{"role": "user", "content": "Hi"}]
+        )
+        print(message.content[0].text)
+
+asyncio.run(main())
+```
+
+## Semantic cache with Anthropic
+
+Anthropic has no embeddings API: pass an embedder explicitly (the question text is then
+sent to OpenAI to compute its embedding).
+
+```python
+from caelum import Anthropic, OpenAIEmbedder
+
+client = Anthropic(semantic_cache=True, semantic_embedder=OpenAIEmbedder(api_key="sk-..."))
+```
+
+The `system` prompt is part of the context: two requests with different system prompts
+never share an answer.

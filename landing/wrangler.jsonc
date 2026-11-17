@@ -1,0 +1,17 @@
+{
+  // CAELUM public website (caelum-ai.com), static files served by Cloudflare.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "caelum-site",
+  "compatibility_date": "2026-08-15",
+  "routes": [
+    { "pattern": "caelum-ai.com", "custom_domain": true },
+    { "pattern": "www.caelum-ai.com", "custom_domain": true }
+  ],
+  // Keep the old *.workers.dev address alive during the move.
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page"
+  }
+}

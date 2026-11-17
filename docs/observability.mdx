@@ -1,0 +1,163 @@
+---
+title: "Observability"
+description: "See requests, cache hits, costs and latency — without any instrumentation."
+---
+
+Every CAELUM client keeps local metrics automatically. No setup, no account, nothing
+sent anywhere: metrics live in your process memory.
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(cache=True)
+# ... your application makes requests ...
+client.metrics.print_summary()
+```
+
+```text
+CAELUM Local Metrics
+Requests:        1 240
+Cache hits:        743 (60%)
+Cost saved:      $ 24.30
+Cost spent:      $ 16.10
+Avg latency:      180ms
+p95 latency:      410ms
+```
+
+With the `rich` extra installed (`pip install "caelum-ai[rich]"`) the summary is rendered as
+a table; otherwise it is printed as plain text.
+
+## Programmatic access
+
+```python
+summary = client.metrics.summary()
+summary["cache_hit_rate"]   # 0.6
+summary["cost_saved_usd"]   # 24.3
+summary["latency_p95_ms"]   # 410.0
+
+client.metrics.export_json("metrics.json")
+client.metrics.reset()
+```
+
+| Key | Meaning |
+|---|---|
+| `requests` | Requests handled by the client (including cache hits and failures). |
+| `cache_hits`, `cache_hits_exact`, `cache_hits_semantic` | Requests answered from a cache. |
+| `cache_misses` | Cacheable requests answered by the API (primary provider). Fallback answers and failed requests are counted in `fallbacks` and `failed_requests` instead. |
+| `api_calls` | Requests answered by the provider. |
+| `failed_requests` | Requests that raised an error. |
+| `retries`, `fallbacks` | Retry attempts and provider switches. |
+| `cost_usd` | Estimated spend (API calls + semantic-cache embeddings). |
+| `cost_saved_usd` | Estimated cost of the answers served from cache. |
+| `unpriced_requests` | Requests whose cost is unknown (model not in the price table, streams). |
+| `latency_avg_ms`, `latency_p50_ms`, `latency_p95_ms` | End-to-end latency as seen by your code. |
+| `requests_by_model` | Request count per requested model. |
+
+Metrics are shared between a client and its `copy()` / `with_options()` derivatives, and
+are thread-safe.
+
+## Cost estimates
+
+Costs are **estimates** computed from the token usage returned by the provider and a
+price table maintained by hand in `caelum.pricing` (last updated: see
+`caelum.pricing.PRICING_LAST_UPDATED`). Prices change: always rely on your provider's
+invoice for billing.
+
+Add or override a model price (USD per 1M tokens):
+
+```python
+from caelum import pricing
+
+pricing.register_price("my-fine-tuned-model", input_per_1m=3.0, output_per_1m=12.0)
+```
+
+Dated snapshots resolve to their base model: `gpt-4o-2024-08-06` uses the `gpt-4o` price.
+
+<Note>
+Streaming requests are counted, but their cost is not estimated in this version.
+</Note>
+
+## Request journal
+
+With a cache enabled, CAELUM writes **one line per request** in a local journal:
+
+| Field | Content |
+| --- | --- |
+| `request_id`, `ts` | Unique id, time |
+| `customer`, `server` | End customer (`caelum.customer()`), host name |
+| `outcome` | `hit` (served from the cache), `gray` (gray zone: API called, entry replaced), `miss`, `excluded`, `bypassed` |
+| `reason` | Exclusion category (`phone`, `amount`...), or `conversation` / `cache_bypass` |
+| `cache_kind`, `score`, `entry_id` | Exact or semantic hit, similarity score, cache entry used |
+| `threshold`, `threshold_source` | Similarity threshold actually used, and where it came from (`request`, `request_floor`, `strict`, `customer`, `default`) |
+| `judge_calls`, `judge_cost_usd`, `judge_cost_source` | Judge calls made before serving a semantic answer, and their cost: real tokens (`tokens`) or the `judge_call_cost` estimate (`estimate`, $0.00006 per call) |
+| `embedding_cost_usd`, `embedding_cost_source` | Cost of the question's embedding, real or the `embedding_call_cost` estimate |
+| `overhead_ms` | Time spent on the embedding and the judge |
+| `saved_usd`, `saved_source` | Cost avoided: the real token cost (`tokens`) when known, otherwise `avoided_call_cost` (`estimate`, $0.002 by default) |
+| `latency_ms` | Response time |
+| `question`, `origin_question` | Question asked, and the stored question that was reused |
+
+**Where it lives and who can read it:** a SQLite file on the machine that runs your app
+(`~/.caelum/journal.sqlite`, private file permissions, `journal_path` to move it). It is
+**never sent to CAELUM Cloud**: only people with access to that machine can read it.
+
+**Privacy:** an excluded request is logged with its category only, never its text; a
+bypassed request (conversation, `cache_bypass`) has no text either. Lines are kept 30 days
+(`journal_retention_days`) and purged automatically; the file holds at most 100,000 lines
+(oldest dropped first).
+
+```python
+import caelum
+from caelum import OpenAI
+
+client = OpenAI(cache=True, journal_retention_days=7, avoided_call_cost=0.003)
+
+stats = client.journal.stats("boutique-kadi")  # one end customer, all time
+stats["hit_rate"], stats["by_outcome"], stats["saved_usd"]
+stats["lowest_score_hits"]  # the 20 riskiest hits: score, question asked, question reused
+stats["gross_saved_usd"], stats["verification_cost_usd"], stats["net_saved_usd"]
+stats["avg_hit_ms"], stats["avg_ai_ms"]   # cache answers vs direct AI calls
+stats["break_even_hit_rate"]              # hit rate from which the cache pays for itself
+stats["alerts"]                           # plain-French warnings (see below)
+
+client.journal.clear("boutique-kadi")  # erase one customer's lines
+client.journal.clear()                 # erase everything
+```
+
+From a terminal: `caelum journal stats --customer boutique-kadi --days 7` and
+`caelum journal clear` (add `--customer` to erase one customer only).
+
+Writing never slows a request: lines are written in batches by a background thread. If
+writing fails (full disk...), requests continue and `client.metrics.summary()["journal_errors"]`
+counts the failures. Turn the journal off with `journal=False`.
+
+<Note>
+The CAELUM Cloud dashboard keeps showing aggregated usage per account (requests, cache
+hits, cost and savings per day, model and customer). The per-request journal stays local
+on purpose: questions are never sent to CAELUM Cloud.
+</Note>
+
+### Net savings
+
+The checks made before serving a reworded question are not free: the question's
+embedding (on every semantic lookup, hit or miss) and the judge (twice per accepted
+answer). `stats()` therefore reports:
+
+- **gross savings**: cost of the AI calls avoided;
+- **verification cost**: judge + embeddings, real token costs when known;
+- **net savings** = gross savings minus verification cost;
+- the average response time of cache answers against direct AI calls;
+- the **break-even hit rate**: the share of questions the cache must serve for the
+  checks to pay for themselves, computed with this customer's own costs.
+
+`alerts` explains in plain French when the net savings are negative (for example "trop
+peu de questions répétées : 3,0 % des questions sont servies par le cache, il en
+faudrait au moins 26,7 %") or when cache answers are slower than the AI.
+
+Order of magnitude (1,000 questions, 40 % served by the cache, gpt-4o-mini judge):
+
+| Answers made by | Gross savings | Checks | Net savings | Break-even |
+| --- | --- | --- | --- | --- |
+| gpt-4o (~$0.00325 per answer) | $1.30 | $0.05 | $1.25 | 1.6 % |
+| gpt-4o-mini (~$0.0002 per answer) | $0.08 | $0.05 | $0.03 | 27 % |
+
+With a cheap answering model, the judge eats most of the savings: watch the net figure.

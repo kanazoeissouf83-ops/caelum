@@ -1,0 +1,24 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "CAELUM",
+  "description": "The control plane for AI inference.",
+  "colors": {
+    "primary": "#B8924A",
+    "light": "#B8924A",
+    "dark": "#1F3A5F"
+  },
+  "navigation": {
+    "groups": [
+      { "group": "Get started", "pages": ["introduction", "quick-start"] },
+      { "group": "Providers", "pages": ["openai", "anthropic", "gemini", "mistral", "local-models"] },
+      { "group": "Features", "pages": ["caching", "routing", "observability", "reliability", "cloud"] },
+      { "group": "Reference", "pages": ["reference", "faq"] }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/kanazoeissouf83-ops/caelum"
+    }
+  }
+}

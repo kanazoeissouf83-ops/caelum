@@ -1,0 +1,511 @@
+---
+title: "Caching"
+description: "Stop paying twice for the same answer."
+---
+
+CAELUM can store the answers to requests your application has already made and serve
+them again instantly, instead of calling (and paying) the provider a second time.
+
+<Note>
+Caching is **disabled by default**. Without `cache=True`, CAELUM behaves exactly like the
+provider SDK.
+</Note>
+
+## Exact cache
+
+```python
+from caelum import OpenAI
+
+client = OpenAI(cache=True)
+
+for _ in range(3):
+    client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": "Hi"}])
+# 1st and 2nd: API (the answer is cached once the question has come back).
+# 3rd and later: served from the local cache, no API call, no cost.
+```
+
+Check whether a response came from the cache:
+
+```python
+import caelum
+
+response = client.chat.completions.create(...)
+caelum.cache_hit(response)   # True / False
+caelum.cache_type(response)  # "exact", "semantic" or None
+```
+
+### What counts as "the same request"
+
+The cache key is a SHA-256 hash of **every parameter that can change the answer**:
+`model`, `messages`, `temperature`, `top_p`, `max_tokens`, `tools`, `tool_choice`,
+`response_format`, `seed`, `stop`, and any other generation parameter.
+
+Only transport parameters are ignored: `timeout`, `extra_headers`, `user`, `metadata`,
+`store`, `stream_options`, `safety_identifier` and prompt-caching hints.
+
+Requests sent to different servers (`base_url`) or with different credentials (API key,
+organization, project) never share answers: in a multi-tenant app, one customer's key is
+never served another customer's cached answer. Only a short hash of the key is used to
+tell them apart; the key itself is never written to the cache file. Rotating a key
+therefore starts with an empty cache for the new key.
+
+### Only questions that come back: frequency admission
+
+An answer is cached only after the API has answered the same question **N times**
+(`cache_admission`, **2 by default**). With the semantic cache, questions with the same
+meaning count together. Questions asked only once (an order number, a personal case) are
+never stored, so the cache only holds answers that are worth reusing.
+
+<Note>
+With the default N=2, savings start with the **third** request of a question, not the
+second. Use `cache_admission=1` to cache every answer at once (the behaviour before 0.2).
+</Note>
+
+```python
+client = OpenAI(cache=True, cache_admission=3, cache_customer_admission={"acme": 1})
+```
+
+Without CAELUM Cloud, candidates are counted in memory, per process and per end customer,
+and forgotten after 24 hours without repetition (at most 10,000 are remembered).
+
+**With CAELUM Cloud (Starter), repetitions are counted for the whole account**: a question
+answered once on server 1 and once on server 2 is admitted, and every server then reuses
+it from the shared memory. How it works:
+
+- the count is sent **after** the answer was returned, by the background thread that
+  already uploads the metrics: it never delays a request;
+- the Cloud keeps, per account and end customer, only the **hash** of the question (its
+  cache key), a counter, and its creation and expiry dates. No text and no embedding: so
+  the shared counter groups **identical** questions; rewordings are still grouped by each
+  server's local counter;
+- increments are atomic (one database statement): two servers counting at the same time
+  never lose a count, and exactly one of them admits the answer;
+- candidates expire with the customer's cache lifetime and are capped at 10,000 per end
+  customer; questions excluded automatically are never sent;
+- if the Cloud is unreachable, the local counter is used, without any error.
+
+`client.metrics.summary()` reports the local counters (`admission_pending`,
+`admission_admitted`, `admission_refused`) and the shared ones
+(`admission_shared_admitted`, `admission_shared_waiting`, `admission_shared_unavailable`);
+`client.shared_admission_pending("customer")` asks the Cloud how many candidates are
+waiting. Each journal line says which counter was used (`admission_counter`: `local` or
+`shared`).
+
+### What a cached answer depends on
+
+Besides the request itself, every cache key (exact and semantic) contains:
+
+- the **end customer** set with `caelum.customer(...)`: one customer's answers are never
+  served to another one;
+- the **language**, declared with `caelum.language("fr")` or detected from the question
+  (a small built-in detector: frequent words, then accents; unaccented text with no other
+  clue counts as English). A wrong guess only causes a cache miss;
+- the **AI model** actually called (after routing);
+- a fingerprint of the **system instructions** (system / developer messages, `system`,
+  `instructions`, Gemini `system_instruction`).
+
+If any of them changes, the cached answer is not reused.
+
+```python
+import caelum
+
+with caelum.customer("boutique-kadi"), caelum.language("fr"):
+    client.chat.completions.create(model="gpt-4o-mini", messages=[...])
+```
+
+<Warning>
+  **Serving several end users? Wrap each one in `caelum.customer(...)`.** The cache key
+  includes the customer id, so two different customers never share an answer. If you leave
+  it unset, every end user falls into the **same** bucket, and a cacheable answer produced
+  for one user can be served to another. Set it per end user whenever an answer could be
+  specific to that user. A public FAQ, where the answer is the same for everyone, is the
+  one case where a shared bucket is fine. Use an internal id, never an email or a name: it
+  is sent to CAELUM Cloud as a dashboard label.
+</Warning>
+
+### Lifetime per customer, and clearing a customer's cache
+
+The lifetime of cached answers (24 hours by default) can be set per end customer, between
+1 minute and 30 days. Invalid values (0, negative, text, out of bounds) are refused when
+the client is created, with a clear message.
+
+```python
+client = OpenAI(cache=True, cache_ttl=24 * 3600, cache_customer_ttl={"promo-shop": 3600})
+```
+
+An answer expires at **the time it was cached + its lifetime**, locally and in the CAELUM
+Cloud shared memory alike. When a customer's lifetime is **shortened**, answers already
+cached for it follow the new, shorter lifetime at once (the safe choice: a shorter
+lifetime usually means "these answers go stale faster"). When it is **lengthened**,
+answers already cached keep their original expiry; only new answers live longer.
+
+To delete a customer's cached answers, locally and in CAELUM Cloud:
+
+```python
+client.clear_cache("boutique-kadi")                         # all of them
+client.clear_cache("boutique-kadi", older_than=7 * 86400)   # only those older than a week
+```
+
+Only that customer's answers are touched (`""` = requests made without a customer).
+Each clearing is noted in the request journal (outcome `purge`). Answers cached in CAELUM Cloud less than about a minute before a
+clearing may be missed by it (Cloudflare lists new entries with a short delay); they
+still expire with their lifetime. From a terminal:
+`caelum cache clear --customer boutique-kadi [--older-than 604800]` (it also clears CAELUM
+Cloud when `CAELUM_API_KEY` is set).
+
+### Personal or time-bound questions are never cached
+
+A question that contains one of the following is **never read from the cache, never
+written to it, and never counted for frequency admission**: CAELUM keeps its text nowhere
+and sends it straight to the AI. Only the category is counted, in
+`client.metrics.summary()["exclusions"]`.
+
+| Category | Examples |
+| --- | --- |
+| `order` | "commande n° 4471", "#4471", "colis AB123456", "order 88213" |
+| `phone` | "+226 70 12 34 56", "70 12 34 56", "+233 24 412 3456", "0244123456" |
+| `email` | "awa.kone@gmail.com" |
+| `amount` | "15 000 FCFA", "5000 F", "12 500 XOF", "200 GHS", "$25", "15 000 francs" |
+| `datetime` | "demain", "ce soir", "lundi prochain", "le 12", "3 décembre", "avant 17h", "14:30" |
+| `payment_identity` | card numbers, IBAN, "mot de passe : ...", "CNIB numéro B12345678" |
+
+Only the user's question is checked (never your system instructions). City and product
+names are not detected: "Livrez-vous à Bobo-Dioulasso ?" and "Puis-je payer par Orange
+Money ?" stay cacheable, and so do durations such as "en 48h" or "24h/24".
+
+```python
+client = OpenAI(
+    cache=True,
+    cache_exclusions={"amount": False},             # switch a category off
+    cache_exclude_patterns=[r"\bclient\s+\d+"],     # your own regular expressions
+    cache_customer_exclusions={"acme": {"datetime": False, "patterns": [r"\bmatricule\b"]}},
+)
+```
+
+An invalid regular expression is refused when the client is created, with a clear message.
+
+**Not detected** (keep them in mind, or add your own patterns): numbers written in words
+("quinze mille francs", "le douze"), amounts without a currency ("j'ai payé 15000"),
+order numbers without a keyword ("4471 pas arrivé"), unusual phone groupings, relative
+dates such as "dans 3 jours" or "à midi", names, street addresses and other personal
+details, and languages other than French and English. A question asking for a precise
+time ("Vous fermez à 18h ?") is excluded even when the answer would be the same for
+everyone.
+
+### Conversations are never cached
+
+A request that depends on a conversation is never read from nor written to the cache:
+"and to Ouaga?" means nothing without "Do you deliver to Bobo?". This covers any request
+with an earlier answer of the AI (an `assistant` / `model` message or a tool result) or
+with more than one user message. To skip the cache for any other request:
+
+```python
+client.chat.completions.create(model="gpt-4o-mini", messages=[...], cache_bypass=True)
+
+with caelum.cache_bypass():  # every request in the block
+    client.chat.completions.create(model="gpt-4o-mini", messages=[...])
+```
+
+`cache_bypass` is removed before the request is sent: the provider never sees it. Type
+checkers do not know this argument; use the `caelum.cache_bypass()` block if yours
+complains.
+
+### What is never cached
+
+- Streaming requests (`stream=True`).
+- Requests with `tool_choice="required"`.
+- Failed requests (errors are never stored).
+- Structured outputs through `chat.completions.parse(...)`: the call is forwarded to the
+  SDK untouched (use `create` with `response_format` to get caching).
+
+<Note>
+Identical requests sent **at the same time** (for example with `asyncio.gather` or
+threads) all reach the API: the first answer is stored only once it arrives. Duplicates
+sent after that are served from the cache.
+</Note>
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `cache` | `False` | Enable the exact cache. |
+| `cache_admission` | `2` | API answers needed for a question before it is cached (`1` = at once). |
+| `cache_customer_admission` | none | `cache_admission` per end customer, e.g. `{"acme": 1}`. |
+| `cache_exclusions` | all on | Switch automatic exclusion categories off, e.g. `{"amount": False}`. |
+| `cache_exclude_patterns` | none | Extra regular expressions that keep a question out of the cache. |
+| `cache_customer_exclusions` | none | Per end customer: `{"acme": {"amount": False, "patterns": [...]}}`. |
+| `cache_ttl` | `86400` (24 h) | Entry lifetime in seconds, from 60 (1 minute) to 2,592,000 (30 days); `None` = the 30-day maximum. Expired entries are removed from disk automatically (every 10 minutes at most). |
+| `cache_customer_ttl` | none | Lifetime per end customer, e.g. `{"promo-shop": 3600}`. |
+| `cache_path` | `~/.caelum/cache.sqlite` | Cache file location. `$CAELUM_HOME` changes the base directory. |
+| `cache_store` | — | Custom storage backend implementing `caelum.cache.CacheStore`. |
+
+```python
+client = OpenAI(cache=True, cache_ttl=3600, cache_path="./my-cache.sqlite")
+```
+
+### Storage and privacy
+
+- The cache is a local SQLite file on your machine. Nothing is sent anywhere.
+- Values are stored as JSON — never `pickle`, which could execute code from a tampered file.
+- On Linux and macOS the cache folder is created readable by you only (`0700`, file `0600`):
+  it contains your prompts and answers, which may include personal data. An existing
+  folder or file keeps its permissions.
+- Safe with forking servers (gunicorn, uwsgi, multiprocessing): each worker process opens
+  its own connections to the cache file.
+- The cache never breaks your application: if the cache file is unreadable, read-only,
+  corrupted or the disk is full, CAELUM logs a warning, disables the cache and calls the
+  API normally.
+
+### Performance
+
+Measured on 1,000 requests with 30% duplicates (see `benchmarks/results/`):
+
+- **30% of API calls saved** (cost saved scales with your duplicate rate).
+- **Under 1 ms p95 overhead** on cache misses (measured +0.25 to +0.56 ms; target: < 5 ms).
+- **~0.1 ms** per cache hit, versus hundreds of milliseconds for a real API call.
+
+## Semantic cache
+
+Reuse answers to questions that are **phrased differently but mean the same thing**:
+
+```python
+import caelum
+from caelum import OpenAI
+
+client = OpenAI(semantic_cache=True)
+
+client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": "How do I return an item?"}])
+# Same meaning, different words: served from the semantic cache.
+response = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": "How can I send back a product?"}])
+caelum.cache_type(response)  # "semantic"
+```
+
+<Warning>
+The semantic cache is **disabled by default** and must be enabled explicitly. Computing
+an embedding sends the question text to the embedding provider (OpenAI
+`text-embedding-3-small`, about $0.02 per million tokens). With the default verifier, the
+two questions are also sent to `gpt-4o-mini` when a candidate is found. Embeddings and
+answers are stored only on your machine.
+</Warning>
+
+### How it decides
+
+1. The **last user message** is turned into an embedding.
+2. CAELUM finds the closest previous question and sorts its cosine similarity into three
+   zones:
+   - **at least `semantic_threshold`**: the stored answer is a candidate for reuse;
+   - **gray zone**, between `semantic_gray_threshold` and `semantic_threshold`: close but
+     not sure enough. The API is called and its answer **replaces** the stored one, so the
+     cache keeps the freshest answer instead of piling up near-duplicates;
+   - **below `semantic_gray_threshold`**: a normal miss. The API is called and the answer
+     is stored as a new entry.
+3. A **verifier** (a small, cheap model) checks that both questions ask for exactly the
+   same information before the answer is reused. It is asked in both orders and must say
+   YES twice. If it says NO, fails, or times out, the request simply goes to the API.
+4. Only questions asked in **exactly the same context** are compared: same model, system
+   prompt, conversation history, tools and generation parameters. Only the wording of the
+   last question may differ.
+
+Order of lookups: **exact cache → semantic cache → API**. A semantic hit is also saved in
+the exact cache (when `cache=True`), so the same wording is answered next time without
+even computing an embedding.
+
+### Measured false positives
+
+Every test run replays **138 question pairs** through the real pipeline: 69 paraphrases
+(same answer) and 69 look-alikes (different answer: another city, another payment method,
+enable / disable...), in English, French and West African wording. Embeddings and judge
+verdicts were recorded once from `text-embedding-3-small` and `gpt-4o-mini`
+(`benchmarks/scripts/record_semantic_pairs.py`). A look-alike served from the cache is a
+false positive, and any false positive fails the test suite.
+
+| Setting | False positives | Paraphrases reused | French pairs (FP / reused) |
+| --- | --- | --- | --- |
+| With the judge (default with OpenAI, threshold 0.60) | **0 / 67 (0 %)** | 50 / 69 (72.5 %) | 0 / 19, 13 / 19 |
+| Embeddings only, threshold 0.97 (default without judge) | 0 / 67 (0 %) | 0 / 69 (0 %) | 0 / 19, 0 / 19 |
+| Embeddings only, threshold 0.90 | 2 / 67 (3.0 %) | 4 / 69 (5.8 %) | 0 / 19, 1 / 19 |
+| Embeddings only, threshold 0.85 | 13 / 67 (19.4 %) | 16 / 69 (23.2 %) | 4 / 19, 8 / 19 |
+
+Two pairs ("today" / "tomorrow" questions) are kept out of the cache by the automatic
+exclusions and are not counted. The judge's verdicts were recorded once; real verdicts
+can vary slightly from one call to the next.
+
+### Why a verifier
+
+Embedding similarity alone cannot tell "same meaning" from "opposite meaning":
+"Convert 10 miles to kilometers" and "Convert 10 kilometers to miles" score 0.95, while
+"Do you offer refunds?" and "Can I get my money back?" score only 0.57. Measured on 50
+paraphrase pairs and 50 look-alike pairs (English and French,
+`benchmarks/scripts/bench_semantic_verifier.py`):
+
+| Setup | Paraphrases reused | Wrong answers (look-alikes) |
+| --- | --- | --- |
+| Embeddings only, threshold 0.97 | 0-2% | 0% |
+| Embeddings only, threshold 0.85 | 16% | 20% |
+| **Verifier `gpt-4o-mini` (default), floor 0.60** | **70-76%** | **0%** |
+
+The verifier was also tested in realistic conditions (each new question compared with all
+100 stored questions): no wrong answer was served. End to end through the real OpenAI API
+(one shared cache, all 100 pairs): **37/50 paraphrases reused, 0/50 wrong answers**, versus
+0/50 reused with embeddings alone. Five prompt-injection attempts (a stored question telling
+the judge to reply YES) were all rejected by the default verifier. These figures come from our calibration
+set; validate on your own traffic before relying on them.
+
+### Cost and latency
+
+- A verification is only made when a candidate is found (similarity at least 0.60).
+- A few hundred input tokens on `gpt-4o-mini`: about **$0.00006** per check (measured:
+  $0.0071 for 128 checks in our real-API test). Tracked in
+  `client.metrics` (`verifier_cost_usd`, `semantic_verifications`, `semantic_rejections`).
+- Latency: one or two short calls (a few hundred milliseconds each) in sync code, run
+  concurrently in async code. A cache hit still saves the full answer generation.
+
+### Multi-user apps: read this first
+
+The exact cache only reuses an answer for the **same request** (same system prompt,
+history and parameters), so it is safe to share between users of the same app.
+
+The semantic cache reuses the answer of **another user's similar question**. Questions
+are written by end users, so a malicious user could try to phrase a question that tricks
+the verifier into accepting a match, and get their (manipulated) answer served to others.
+CAELUM passes each question to the verifier as escaped data and tells it to ignore any
+instruction inside, but no LLM judge is perfectly immune to prompt injection. If your
+users are untrusted and answers could be harmful when reused:
+
+- keep the semantic cache off (`semantic_cache=False`, the default), or
+- separate users, for example with one `cache_path` per user or per tenant, or by
+  putting the user or tenant in the system prompt (different context = never shared).
+
+### Never semantically cached
+
+- Streaming requests and `tool_choice="required"`.
+- Messages containing images, audio, files or tool results (text-only questions only).
+- The embeddings endpoint (returning the vector of a *similar* text would be wrong).
+
+### Options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `semantic_cache` | `False` | Enable the semantic cache. |
+| `semantic_verifier` | `gpt-4o-mini` through the same client (OpenAI) | A `caelum.LLMVerifier`, any object with `verify()` / `averify()`, or `False` to disable verification. |
+| `semantic_threshold` | `0.60` with a verifier, `0.97` without | Minimum cosine similarity to reuse an answer, in `(0, 1]`. |
+| `semantic_gray_threshold` | `semantic_threshold - 0.05` | Lower bound of the gray zone (API called, entry replaced). Equal to `semantic_threshold` = no gray zone. |
+| `semantic_customer_thresholds` | none | Bounds per end customer, e.g. `{"acme": (0.98, 0.93)}`; the customer is the one set with `caelum.customer()`. |
+| `semantic_threshold_floor` | none | Safety floor (0.80 to 0.999): a per-request `semantic_threshold` below it is raised to it. |
+| `semantic_embedder` | OpenAI, through the same client | Custom embedder (see below). |
+| `cache_ttl`, `cache_path` | shared with the exact cache | Lifetime and location. |
+
+<Warning>
+Without a verifier (`semantic_verifier=False`), **do not lower the threshold below 0.97**
+unless you have validated it on your own traffic: look-alike questions would get wrong
+answers.
+</Warning>
+
+### Threshold for one request
+
+A sensitive question can ask for a stricter threshold than the client's setting, on that
+request only:
+
+```python
+client.chat.completions.create(model="gpt-4o-mini", messages=[...], semantic_threshold=0.98)
+client.chat.completions.create(
+    model="gpt-4o-mini", messages=[...], semantic_threshold=0.98, semantic_gray_threshold=0.95
+)
+client.chat.completions.create(model="gpt-4o-mini", messages=[...], semantic_strict=True)
+```
+
+- `semantic_threshold` accepts values from **0.80 to 0.999**; the optional
+  `semantic_gray_threshold` must be strictly below it (default: 0.05 below).
+- `semantic_strict=True` asks for the highest threshold, 0.999 (gray zone from 0.95).
+- A **safety floor** set on the client (`semantic_threshold_floor=0.95`) can never be
+  undercut by a request: a lower request threshold is **raised to the floor** (the request
+  still runs, a warning is logged), so a mistake in the app cannot loosen the cache.
+- Invalid values are refused before anything is sent, with a clear message.
+- Exact-cache hits (the very same request) are always served: they match at 1.0.
+
+These arguments are removed before the request is sent to the provider. Type checkers do
+not know them: call through a variable typed `Any` if yours complains.
+
+**Order of priority:** `cache_bypass` wins over everything, then the automatic exclusions
+(no cache at all), then the request's threshold (never below the floor), then the end
+customer's threshold (`semantic_customer_thresholds`), then the default. The request
+journal records the threshold actually used and where it came from (`request`,
+`request_floor`, `strict`, `customer` or `default`).
+
+### Choosing the verifier
+
+```python
+from caelum import LLMVerifier, OpenAI
+
+# Another OpenAI-compatible judge, e.g. through OpenRouter:
+verifier = LLMVerifier(
+    base_url="https://openrouter.ai/api/v1",
+    api_key="sk-or-...",
+    model="mistralai/mistral-small-24b-instruct-2501",
+)
+client = OpenAI(semantic_cache=True, semantic_verifier=verifier)
+```
+
+If your OpenAI client points to another provider (`base_url`), pass a verifier explicitly:
+the default model name `gpt-4o-mini` may not exist there (verification would then fail
+safely and nothing would be reused). Small instruction models work best; reasoning models
+are slow and may return nothing within the one-word budget.
+
+### Anthropic and other providers
+
+Anthropic has no embeddings API, so an embedder must be passed explicitly (the question
+text is then sent to OpenAI for the embedding). There is no default verifier either: pass
+one, or the strict 0.97 threshold is used.
+
+```python
+from caelum import Anthropic, LLMVerifier, OpenAIEmbedder
+
+client = Anthropic(
+    semantic_cache=True,
+    semantic_embedder=OpenAIEmbedder(api_key="sk-..."),
+    semantic_verifier=LLMVerifier(api_key="sk-..."),
+)
+```
+
+Any object with a `model` property and an `embed(text)` method (and optionally an async
+`aembed(text)`) returning `caelum.cache.EmbeddingResult` can be used as an embedder.
+
+### Performance
+
+- Up to 10,000 embeddings are kept (oldest evicted first).
+- Search is restricted to the matching context, then scans candidates in memory. For
+  large caches, install the `fast` extra (`pip install "caelum-ai[fast]"`) to use numpy.
+- The embedding call (and the verification, when a candidate is found) adds network
+  latency on requests that go through the semantic cache. This is the price of opting in;
+  the default path (no semantic cache) is unaffected.
+- Cache files written by older versions keep working, but their semantic entries have no
+  stored question text, so they are never reused when a verifier is on.
+
+## Inspecting the cache
+
+```bash
+caelum cache stats                      # default file: ~/.caelum/cache.sqlite
+caelum cache stats --path my-cache.sqlite --json
+python -m caelum cache stats            # same thing, without the console script
+```
+
+```text
+CAELUM cache
+  File:              /home/me/.caelum/cache.sqlite
+  Size on disk:      2.4 MB
+  Exact entries:     1250 (40 expired)
+  Semantic entries:  310 (0 expired)
+  Live entries:      1520
+  Oldest / newest:   2026-10-30 09:12 / 2026-11-02 17:10
+  Value per reuse:   $ 1.8423  (estimated cost of one more call for every live entry)
+
+  By model:
+    gpt-4o-mini-2024-07-18     1100 entries  $ 0.2310
+    claude-sonnet-5-5           420 entries  $ 1.6113
+```
+
+The command never changes your cached entries (SQLite may create its temporary
+`-wal`/`-shm` files next to the cache, which are counted in "Size on disk"). "Value per reuse" is what serving every live entry once
+more would save, from the token counts stored with each answer and the prices in
+`caelum.pricing`. Total savings over time are not stored in the file: they are counted
+per client, in `client.metrics`.
